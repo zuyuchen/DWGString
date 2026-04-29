@@ -9,7 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-//=============================================================================
+//=============================================================================s f d s
 DWGAudioProcessor::DWGAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
@@ -132,8 +132,11 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     
     // Initialize default values
     lastFreq = 440.0f;
-    lastT60 = 2.0f;
+    lastT60 = 3.0f;
     lastPluck = false;
+    lastR = 0.8;
+    lastPickPos = 0.5;
+    
     dwg.setFrequency(lastFreq);
     dwg.setDamping(lastT60, lastFreq);
 
@@ -148,6 +151,8 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     float freq  = apvts.getRawParameterValue("freq")->load();
     float T60  = apvts.getRawParameterValue("damping")->load();
     bool pluck = apvts.getRawParameterValue("pluck")->load();
+    float R = apvts.getRawParameterValue("R")->load();
+    float pickPos = apvts.getRawParameterValue("pickPos")->load();
     
     // Only update when parameters changed
     if (freq != lastFreq)
@@ -166,10 +171,20 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     // Handle pluck trigger (should be one-shot, not continuous)
     if (pluck && !lastPluck)  // Rising edge detection
     {
-        dwg.pluck();
+        if (R != lastR)
+        {
+            lastR = R;
+        }
+        if (pickPos != lastPickPos)
+        {
+            lastPickPos = pickPos;
+        }
+        
+        dwg.pluck(R);
     }
     lastPluck = pluck;
     
+    //
     
     // 先处理所有 MIDI 事件
     for (const auto metadata : midiMessages)
@@ -188,7 +203,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             
             dwg.setFrequency(midiFreq);
             dwg.setDamping(lastT60, midiFreq);
-            dwg.pluck();
+            dwg.pluck(R);
         }
         // Note Off 可以暂时不处理，让弦自然衰减
     }
@@ -258,8 +273,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "damping",
         "DampingT60",
-        juce::NormalisableRange<float>(0.9f, 3.00f, 0.01f),
-        2.00f
+        juce::NormalisableRange<float>(0.00f, 7.00f, 0.01f),
+        3.00f
     ));
 
     // Pluck triger
@@ -267,6 +282,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "pluck",
         "Pluck",
         false
+    ));
+    
+    // Input dynamics filter (soften the attack)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "R",
+        "Soften Attack",
+        juce::NormalisableRange<float>(0.00f, 1.00f, 0.01f),
+        .80f
+    ));
+    
+    // Pick position 0 ~ 1
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "pickPos",
+        "Pick Position",
+        juce::NormalisableRange<float>(0.00f, 1.00f, 0.01f),
+        .50f
     ));
     
     return { params.begin(), params.end() };

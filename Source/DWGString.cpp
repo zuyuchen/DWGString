@@ -27,9 +27,9 @@ void DWGString::setFrequency(float frequency)
 void DWGString::setDamping(float T60, float frequency)
 {
 
-//    float gLoop = pow(10.0f, -3.0f * T60 / (2.0f * frequency)); // g now is proportional to 10^(-1/f), lower in pitch(longer loops) decay faster per loop but overall it decays 10^-3 of orgional after T60s for all frequencies.
-//    g = sqrt(gLoop);
-    g = 0.9999f;
+    float gLoop = pow(10.0f, -3.0f / (T60 * frequency)); // g now is proportional to 10^(-1/f), lower in pitch(longer loops) decay faster per loop but overall it decays 10^-3 of orgional after T60s for all frequencies.
+    g = sqrt(gLoop);
+//    g = 0.9999f;
 }
 
 // ===========================
@@ -43,7 +43,6 @@ void DWGString::updateDelay()
     // Reserve 0.5 samples for the two-point average, then split remaining equally
     float halfDelay = (totalDelay - 0.5f) / 2.0f;
     intDelay = std::max(1, (int)halfDelay);
-    DBG(intDelay);
     fractionalDelay = std::clamp(halfDelay - intDelay, 0.0f, 0.999f);
     
     // set the filter coefficients for the FracDelay filter (allpass filter)
@@ -57,24 +56,45 @@ void DWGString::updateDelay()
 }
 
 // initialize the delay line with white noise
-void DWGString::pluck()
+void DWGString::pluck(float R)
 {
   
-    // clear the delay lines and reset the states of the filter
+    // Clear the delay lines and reset the states of the filter
     delayR.clear();
     delayL.clear();
     z1R = 0.0f;
     z1L = 0.0f;
+    zInput = 0.0f;
     
+    // M = pluck position as fraciton of total delay size
+    float totalDelay = (float)(fs / freq);
+    int M = std::max(1, (int)std::round(pluckPos * totalDelay));
+    std::vector<float> combBuffer(M, 0.0f); // input buffer (feedfoward comb filter buffer)
+    int combPtr = 0;
+    
+    // Write the input signal in
     for (int i = 0; i < intDelay; ++i)
     {
+        // Generate white noise
         float noise = amplitude * (2.0f * rand() / RAND_MAX - 1.0f); // [-1, 1] randome numbers scaled by amplitude
         
-        delayR.write(noise);
-        delayL.write(-noise);
+        // Apply input dynamic filter (one-pole LPF to soften high frequencies)
+        noise = (1 - R) * noise + R * zInput;
+        zInput = noise;
+        
+        // Apply pick position filter (feedforward comb, "notch", filter)
+        float delayed = combBuffer[combPtr];
+        float combed = noise + delayed; // y[n] = x[n] + x[n - M]
+        combBuffer[combPtr] = noise;
+        combPtr = (combPtr + 1) % M;
+        
+        // Write same filtered noise to both delay lines (mono excitation)
+        delayR.write(combed);
+        delayL.write(combed);
         
         delayR.advance();
         delayL.advance();
+        
         
     }
 

@@ -65,6 +65,8 @@ private:
     float lastT60;
     float lastFreq;
     bool lastPluck;
+    float lastR;
+    float lastPickPos;
     
     float debugPhase = 0.0f;
     
