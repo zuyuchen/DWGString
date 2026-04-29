@@ -66,9 +66,7 @@ private:
     float lastFreq;
     bool lastPluck;
     float lastR;
-    float lastPickPos;
-    
-    float debugPhase = 0.0f;
+    float lastPluckPos;
     
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 

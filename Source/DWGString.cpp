@@ -41,9 +41,9 @@ void DWGString::updateDelay()
     float totalDelay = (float)(fs / freq);
     
     // Reserve 0.5 samples for the two-point average, then split remaining equally
-    float halfDelay = (totalDelay - 0.5f) / 2.0f;
-    intDelay = std::max(1, (int)halfDelay);
-    fractionalDelay = std::clamp(halfDelay - intDelay, 0.0f, 0.999f);
+    intDelay = std::max(1, (int)totalDelay);
+    DBG(intDelay);
+    fractionalDelay = std::clamp(totalDelay - intDelay, 0.0f, 0.999f);
     
     // set the filter coefficients for the FracDelay filter (allpass filter)
     fracDelayR.setDelay(fractionalDelay);
@@ -56,7 +56,7 @@ void DWGString::updateDelay()
 }
 
 // initialize the delay line with white noise
-void DWGString::pluck(float R)
+void DWGString::pluck(float R, float pluckPos)
 {
   
     // Clear the delay lines and reset the states of the filter
@@ -66,26 +66,34 @@ void DWGString::pluck(float R)
     z1L = 0.0f;
     zInput = 0.0f;
     
+    int peakIdx = std::max(1, (int)std::round(pluckPos * intDelay)); // pick position index as the peak point of the triangle plucking wave
+    
     // M = pluck position as fraciton of total delay size
-    float totalDelay = (float)(fs / freq);
-    int M = std::max(1, (int)std::round(pluckPos * totalDelay));
+    int M = peakIdx;
     std::vector<float> combBuffer(M, 0.0f); // input buffer (feedfoward comb filter buffer)
     int combPtr = 0;
     
     // Write the input signal in
     for (int i = 0; i < intDelay; ++i)
     {
-        // Generate white noise
-        float noise = amplitude * (2.0f * rand() / RAND_MAX - 1.0f); // [-1, 1] randome numbers scaled by amplitude
+        // White Noise Input
+//        float displacement = noiseInput(amplitude);
+        
+       // Triangle displacement at position i
+       float displacement;
+       if (i <= peakIdx)
+           displacement = amplitude * (float)i / (float)peakIdx; // rising slope
+       else
+           displacement = amplitude * (float)(intDelay - i) / (float)(intDelay - peakIdx); // falling slope
         
         // Apply input dynamic filter (one-pole LPF to soften high frequencies)
-        noise = (1 - R) * noise + R * zInput;
-        zInput = noise;
+        displacement = (1 - R) * displacement + R * zInput;
+        zInput = displacement;
         
         // Apply pick position filter (feedforward comb, "notch", filter)
-        float delayed = combBuffer[combPtr];
-        float combed = noise + delayed; // y[n] = x[n] + x[n - M]
-        combBuffer[combPtr] = noise;
+        float delayed = combBuffer[combPtr]; // x[n-M]
+        float combed = displacement - delayed; // y[n] = x[n] + x[n - M]
+        combBuffer[combPtr] = displacement; // write in the current state x[n]
         combPtr = (combPtr + 1) % M;
         
         // Write same filtered noise to both delay lines (mono excitation)
@@ -95,10 +103,17 @@ void DWGString::pluck(float R)
         delayR.advance();
         delayL.advance();
         
-        
     }
 
 }
+
+float DWGString::noiseInput(float amplitude)
+{
+    // Generate white noise
+    float noise = amplitude * (2.0f * rand() / RAND_MAX - 1.0f);
+    return noise;
+}
+
 
 float DWGString::twoPtAvgDecay(float x, float& z1)
 {

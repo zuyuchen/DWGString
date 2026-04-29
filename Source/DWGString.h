@@ -19,8 +19,9 @@ public:
     void setFrequency(float frequency);
     void setDamping(float T60, float frequency); // T60 controlled global damping coefficient
 
-    void pluck(float R);    // simple pluck (noise burst)
-    void trianglePluck(float amplitude);  // emulate the displacement wave of pluck
+    void pluck(float R, float pluckPos);    // pluck initialization
+    float noiseInput(float amplitude); // emulate a random displacement profile
+    float triangleInput(float amplitude);  // emulate the displacement shape of pluck
     void squareStrike(float velocity); // emulate the velocity wave of strike
     
     float twoPtAvgDecay(float sample, float& z1);   // implement a two-point average loww pass filtering as the frequency dependent decay
@@ -42,7 +43,6 @@ private:
     float amplitude = 1; // pluck amplitude
     float g = 0.999f; // damping coefficient
     float T60 = 2.0; // T60 decay time in sec
-    float pluckPos = 0.5f; // plucking position relative to the string length 0 ~ 1
     
     float zInput = 0.0f; // Input dynamics filter state
     

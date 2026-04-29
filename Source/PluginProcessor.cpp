@@ -135,7 +135,7 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     lastT60 = 3.0f;
     lastPluck = false;
     lastR = 0.8;
-    lastPickPos = 0.5;
+    lastPluckPos = 0.5;
     
     dwg.setFrequency(lastFreq);
     dwg.setDamping(lastT60, lastFreq);
@@ -152,7 +152,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     float T60  = apvts.getRawParameterValue("damping")->load();
     bool pluck = apvts.getRawParameterValue("pluck")->load();
     float R = apvts.getRawParameterValue("R")->load();
-    float pickPos = apvts.getRawParameterValue("pickPos")->load();
+    float pluckPos = apvts.getRawParameterValue("pluckPos")->load();
     
     // Only update when parameters changed
     if (freq != lastFreq)
@@ -175,16 +175,15 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         {
             lastR = R;
         }
-        if (pickPos != lastPickPos)
+        if (pluckPos != lastPluckPos)
         {
-            lastPickPos = pickPos;
+            lastPluckPos = pluckPos;
         }
         
-        dwg.pluck(R);
+        dwg.pluck(R, pluckPos);
     }
     lastPluck = pluck;
     
-    //
     
     // 先处理所有 MIDI 事件
     for (const auto metadata : midiMessages)
@@ -203,7 +202,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             
             dwg.setFrequency(midiFreq);
             dwg.setDamping(lastT60, midiFreq);
-            dwg.pluck(R);
+            dwg.pluck(R, pluckPos);
         }
         // Note Off 可以暂时不处理，让弦自然衰减
     }
@@ -294,10 +293,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
     
     // Pick position 0 ~ 1
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "pickPos",
-        "Pick Position",
+        "pluckPos",
+        "Pluck Position",
         juce::NormalisableRange<float>(0.00f, 1.00f, 0.01f),
-        .50f
+        .20f
     ));
     
     return { params.begin(), params.end() };
