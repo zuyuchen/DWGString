@@ -67,7 +67,9 @@ private:
     bool lastPluck;
     float lastR;
     float lastPluckPos;
-    
+    float lastMu;
+    float lastK;
+    float lastVelocity;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 };

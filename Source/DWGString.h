@@ -17,14 +17,17 @@ class DWGString
 public:
     void prepare(double sampleRate);
     void setFrequency(float frequency);
-    void setDamping(float T60, float frequency); // T60 controlled global damping coefficient
-
+    void setDamping(float T60, float frequency, float mu_, float K_); // T60 controlled global damping coefficient
+    void setPluckStrength(float strength);
     void pluck(float R, float pluckPos);    // pluck initialization
+    
     float noiseInput(float amplitude); // emulate a random displacement profile
     float triangleInput(float amplitude);  // emulate the displacement shape of pluck
     void squareStrike(float velocity); // emulate the velocity wave of strike
     
     float twoPtAvgDecay(float sample, float& z1);   // implement a two-point average loww pass filtering as the frequency dependent decay
+    float onePoleLP(float x, float& z1, float p);
+ 
     float process();
     
     
@@ -40,12 +43,18 @@ private:
    
     double fs = 44100.0;  // sample rate
     float freq = 440.0f; // fuundamental frequency (pitch)
-    float amplitude = 1; // pluck amplitude
+    float pluckStrength = 1; // pluck amplitude
     float g = 0.999f; // damping coefficient
     float T60 = 2.0; // T60 decay time in sec
     
     float zInput = 0.0f; // Input dynamics filter state
     
+    // Frequency-dependent loss filter prams
     float z1R = 0.0f;
-    float z1L = 0.0f; // inital state for the two point average filter
+    float z1L = 0.0f; // inital state
+    
+    float p = 0.9; // pole = 1 - 2pi*mu / K
+    float mu = 0.001; // Internal friction (mu) - controls high frequency decay rate
+    float K = 0.0001; // Stiffness (K) - controls inharmonicity
+     
 };

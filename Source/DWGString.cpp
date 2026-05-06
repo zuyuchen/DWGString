@@ -24,12 +24,27 @@ void DWGString::setFrequency(float frequency)
     updateDelay();
 }
 
-void DWGString::setDamping(float T60, float frequency)
+void DWGString::setDamping(float T60, float frequency, float mu_, float K_)
 {
 
     float gLoop = pow(10.0f, -3.0f / (T60 * frequency)); // g now is proportional to 10^(-1/f), lower in pitch(longer loops) decay faster per loop but overall it decays 10^-3 of orgional after T60s for all frequencies.
     g = sqrt(gLoop);
-//    g = 0.9999f;
+    
+    // set mu and K
+    mu = mu_;
+    K = K_;
+    // Frequency-dependent loss pole: p = exp(-2π * mu / (K * frequency))
+    // This gives realistic frequency-dependent damping, ensuring p stays between 0 and 1 and gives natural high-frequency rolloff!
+    float exponent = -2.0f * juce::MathConstants<float>::pi * mu / (K * frequency + 0.00001f);
+    p = std::clamp(exp(exponent), 0.01f, 0.99f);
+        
+    // Update fractional delay
+    updateDelay(); // pole changes lead to change of phase delay
+}
+
+void DWGString::setPluckStrength(float strength)
+{
+    pluckStrength = strength;
 }
 
 // ===========================
@@ -39,19 +54,20 @@ void DWGString::setDamping(float T60, float frequency)
 void DWGString::updateDelay()
 {
     float totalDelay = (float)(fs / freq);
+        
+    // Phase delay of one-pole LP at DC = p / (1 - p)
+    float filterDelay = p / (1.0f - p);
     
-    // Reserve 0.5 samples for the two-point average, then split remaining equally
-    intDelay = std::max(1, (int)totalDelay);
-    DBG(intDelay);
-    fractionalDelay = std::clamp(totalDelay - intDelay, 0.0f, 0.999f);
+    float halfDelay = (totalDelay - filterDelay);
+    intDelay = std::max(1, (int)halfDelay);
+    fractionalDelay = std::clamp(halfDelay - intDelay, 0.0f, 0.999f);
     
-    // set the filter coefficients for the FracDelay filter (allpass filter)
     fracDelayR.setDelay(fractionalDelay);
     fracDelayL.setDelay(fractionalDelay);
     
-    // set the integer delay size for the delay lines
     delayR.prepare(intDelay);
     delayL.prepare(intDelay);
+
     
 }
 
@@ -77,28 +93,30 @@ void DWGString::pluck(float R, float pluckPos)
     for (int i = 0; i < intDelay; ++i)
     {
         // White Noise Input
-//        float displacement = noiseInput(amplitude);
+        float displacement = noiseInput(pluckStrength);
         
-       // Triangle displacement at position i
-       float displacement;
-       if (i <= peakIdx)
-           displacement = amplitude * (float)i / (float)peakIdx; // rising slope
-       else
-           displacement = amplitude * (float)(intDelay - i) / (float)(intDelay - peakIdx); // falling slope
+//        Triangle Displacement Input
+//       float displacement;
+//       if (i <= peakIdx)
+//           displacement = pluckStrength * (float)i / (float)peakIdx; // rising slope
+//       else 
+//           displacement = pluckStrength * (float)(intDelay - i) / (float)(intDelay - peakIdx); // falling slope
+        // Add small noise to the pluck for realism
+        float noise = noiseInput(0.1);
+        displacement += noise;
         
-        // Apply input dynamic filter (one-pole LPF to soften high frequencies)
-        displacement = (1 - R) * displacement + R * zInput;
-        zInput = displacement;
-        
-        // Apply pick position filter (feedforward comb, "notch", filter)
-        float delayed = combBuffer[combPtr]; // x[n-M]
-        float combed = displacement - delayed; // y[n] = x[n] + x[n - M]
-        combBuffer[combPtr] = displacement; // write in the current state x[n]
-        combPtr = (combPtr + 1) % M;
+        // First apply comb (pluck position notches)
+        float delayed = combBuffer[combPtr];
+        float combed = displacement - delayed;
+        combBuffer[combPtr] = displacement;
+        combPtr = (combPtr + 1) % peakIdx;
+
+        // Then soften with LPF
+        float softened = onePoleLP(combed, this->zInput, R);
         
         // Write same filtered noise to both delay lines (mono excitation)
-        delayR.write(combed);
-        delayL.write(combed);
+        delayR.write(softened);
+        delayL.write(softened);
         
         delayR.advance();
         delayL.advance();
@@ -125,6 +143,14 @@ float DWGString::twoPtAvgDecay(float x, float& z1)
     return output;
 }
 
+float DWGString::onePoleLP(float x, float& z1, float p)
+{
+    float b0 = 1.0f - p;
+    float y = b0 * x + p * z1;  // y[n] = (1-p)*x[n] + p*y[n-1]
+    z1 = y;
+    return y;
+}
+
 float DWGString::process()
 {
     // read the integer-delay line values at the boundary
@@ -136,8 +162,12 @@ float DWGString::process()
     yMinus = fracDelayL.process(yMinus);
     
     // apply two point average (one zero low pass) filter as the frequency-dependent loss
-    float yPlusLP = twoPtAvgDecay(yPlus, this->z1R);
-    float yMinusLP = twoPtAvgDecay(yMinus, this->z1L);
+//    float yPlusLP = twoPtAvgDecay(yPlus, this->z1R);
+//    float yMinusLP = twoPtAvgDecay(yMinus, this->z1L);
+    
+    // apply one-one pole loss pass filter as the frequency-dependent loss
+    float yPlusLP = onePoleLP(yPlus, this->z1R, p);
+    float yMinusLP = onePoleLP(yMinus, this->z1L, p);
     
     // calculate the reflected value
     float reflectedL = -g * yPlusLP;
@@ -152,6 +182,15 @@ float DWGString::process()
     delayL.advance();
     
     // combine the traveling waves for the output
-    return yPlus + yMinus;
+    float output = yPlus + yMinus;
+    
+    // Debug: Check if output is silent
+    static int debugCounter = 0;
+    if (debugCounter++ % 44100 == 0) // Once per second at 44.1kHz
+    {
+        DBG("String output level: " + juce::String(output));
+    }
+    
+    return output;
    
 }

@@ -136,9 +136,12 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     lastPluck = false;
     lastR = 0.8;
     lastPluckPos = 0.5;
-    
+    lastMu = 0.001;
+    lastK = 0.005;
+    lastVelocity = 0.8f;
     dwg.setFrequency(lastFreq);
-    dwg.setDamping(lastT60, lastFreq);
+    dwg.setDamping(lastT60, lastFreq, lastMu, lastK);
+    
 
 }
 
@@ -153,19 +156,24 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     bool pluck = apvts.getRawParameterValue("pluck")->load();
     float R = apvts.getRawParameterValue("R")->load();
     float pluckPos = apvts.getRawParameterValue("pluckPos")->load();
+    float mu = apvts.getRawParameterValue("mu")->load();
+    float K = apvts.getRawParameterValue("K")->load();
+    
     
     // Only update when parameters changed
     if (freq != lastFreq)
     {
         dwg.setFrequency(freq);
-        dwg.setDamping(T60, freq);
+        dwg.setDamping(T60, freq, mu, K);
         lastFreq = freq;
     }
     
-    if (T60 != lastT60)
+    if (T60 != lastT60 || mu != lastMu || K != lastK)
     {
-        dwg.setDamping(T60, freq);
+        dwg.setDamping(T60, freq, mu, K);
         lastT60 = T60;
+        lastMu = mu;
+        lastK = K;
     }
     
     // Handle pluck trigger (should be one-shot, not continuous)
@@ -179,7 +187,6 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         {
             lastPluckPos = pluckPos;
         }
-        
         dwg.pluck(R, pluckPos);
     }
     lastPluck = pluck;
@@ -200,8 +207,13 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             int midiNote = msg.getNoteNumber();
             float midiFreq = 440.0f * std::pow(2.0f, (midiNote - 69) / 12.0f);
             
+            float velocity = msg.getVelocity() / 127.0f;
+            lastVelocity = velocity;
+            // Scale pluck force by velocity
+            float pluckStrength = 0.5f + 0.5f * velocity;
+            dwg.setPluckStrength(pluckStrength);
             dwg.setFrequency(midiFreq);
-            dwg.setDamping(lastT60, midiFreq);
+            dwg.setDamping(lastT60, midiFreq, mu, K);
             dwg.pluck(R, pluckPos);
         }
         // Note Off 可以暂时不处理，让弦自然衰减
@@ -264,16 +276,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
        "freq",                      // parameter ID (must NEVER change later)
        "Frequency",                 // UI name
-       juce::NormalisableRange<float>(20.0f, 20000.0f, 0.01f, 0.5f),
-       440.0f
+        juce::NormalisableRange<float>(41.2f, 329.6f, 0.01f, 0.5f),
+        82.4f  // Default to low E2
     ));
     
-    // Damping (g)
+    // Damping T60
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "damping",
         "DampingT60",
-        juce::NormalisableRange<float>(0.00f, 7.00f, 0.01f),
-        3.00f
+        juce::NormalisableRange<float>(1.0f, 10.0f, 0.1f),
+        3.0f
     ));
 
     // Pluck triger
@@ -297,6 +309,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "Pluck Position",
         juce::NormalisableRange<float>(0.00f, 1.00f, 0.01f),
         .20f
+    ));
+    
+    // Internal friction (mu) - controls high frequency decay rate
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "mu",
+        "Internal Friction",
+        juce::NormalisableRange<float>(0.0001f, 0.001f, 0.0001f, 0.3f),  // 0.3 skew toward small values
+        0.0005f
+    ));
+
+    // Stiffness (K) - controls inharmonicity
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "K",
+        "Stiffness",
+        juce::NormalisableRange<float>(0.000001f, 0.0001f, 0.00001f, 0.3f),  // 0.3 skew toward small values
+        0.00005f
     ));
     
     return { params.begin(), params.end() };
