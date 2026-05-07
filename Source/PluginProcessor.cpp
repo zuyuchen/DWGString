@@ -132,12 +132,12 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     
     // Initialize default values
     lastFreq = 440.0f;
-    lastT60 = 3.0f;
+    lastT60 = 7.5f;
     lastPluck = false;
-    lastR = 0.8;
+    lastR = 0.48;
     lastPluckPos = 0.5;
-    lastMu = 0.001;
-    lastK = 0.005;
+    lastMu = 0.0002;
+    lastK = 0.00001;
     lastB = 0.0001;
     lastVelocity = 0.8f;
     dwg.setFrequency(lastFreq);
@@ -327,7 +327,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "mu",
         "Internal Friction",
         juce::NormalisableRange<float>(0.0001f, 0.001f, 0.0001f, 0.3f),  // 0.3 skew toward small values
-        0.0010f
+        0.0002f
     ));
 
     // Stiffness (K) - controls inharmonicity
@@ -335,10 +335,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "K",
         "Stiffness",
         juce::NormalisableRange<float>(0.000001f, 0.0001f, 0.00001f, 0.3f),  // 0.3 skew toward small values
-        0.0001f
+        0.00001f
     ));
     
-    //
+    // Inharmonicity B
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "B",
         "Inharmonicity",
