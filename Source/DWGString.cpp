@@ -78,7 +78,7 @@ void DWGString::updateDelay()
     float filterDelay = lpDelay + dispDelay;
     
     // Each delay line phase
-    float halfDelay = (totalDelay - filterDelay);
+    float halfDelay = 0.5f * (totalDelay - filterDelay);
     intDelay = std::max(1, (int)halfDelay);
     fractionalDelay = std::clamp(halfDelay - intDelay, 0.0f, 0.999f);
     
