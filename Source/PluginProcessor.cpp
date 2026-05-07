@@ -138,9 +138,11 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     lastPluckPos = 0.5;
     lastMu = 0.001;
     lastK = 0.005;
+    lastB = 0.0001;
     lastVelocity = 0.8f;
     dwg.setFrequency(lastFreq);
     dwg.setDamping(lastT60, lastFreq, lastMu, lastK);
+    dwg.setInharmonicity(lastB);
     
 
 }
@@ -158,6 +160,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     float pluckPos = apvts.getRawParameterValue("pluckPos")->load();
     float mu = apvts.getRawParameterValue("mu")->load();
     float K = apvts.getRawParameterValue("K")->load();
+    float B = apvts.getRawParameterValue("B")->load();
     
     
     // Only update when parameters changed
@@ -165,6 +168,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     {
         dwg.setFrequency(freq);
         dwg.setDamping(T60, freq, mu, K);
+        dwg.setInharmonicity(B);
         lastFreq = freq;
     }
     
@@ -174,6 +178,12 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         lastT60 = T60;
         lastMu = mu;
         lastK = K;
+    }
+    
+    if (B != lastB)
+    {
+        dwg.setInharmonicity(B);
+        lastB = B;
     }
     
     // Handle pluck trigger (should be one-shot, not continuous)
@@ -214,6 +224,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             dwg.setPluckStrength(pluckStrength);
             dwg.setFrequency(midiFreq);
             dwg.setDamping(lastT60, midiFreq, mu, K);
+            dwg.setInharmonicity(lastB);
             dwg.pluck(R, pluckPos);
         }
         // Note Off 可以暂时不处理，让弦自然衰减
@@ -285,7 +296,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "damping",
         "DampingT60",
         juce::NormalisableRange<float>(1.0f, 10.0f, 0.1f),
-        3.0f
+        7.8f
     ));
 
     // Pluck triger
@@ -300,7 +311,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "R",
         "Soften Attack",
         juce::NormalisableRange<float>(0.00f, 1.00f, 0.01f),
-        .80f
+        .48f
     ));
     
     // Pick position 0 ~ 1
@@ -316,7 +327,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "mu",
         "Internal Friction",
         juce::NormalisableRange<float>(0.0001f, 0.001f, 0.0001f, 0.3f),  // 0.3 skew toward small values
-        0.0005f
+        0.0010f
     ));
 
     // Stiffness (K) - controls inharmonicity
@@ -324,9 +335,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "K",
         "Stiffness",
         juce::NormalisableRange<float>(0.000001f, 0.0001f, 0.00001f, 0.3f),  // 0.3 skew toward small values
-        0.00005f
+        0.0001f
     ));
     
+    //
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        "B",
+        "Inharmonicity",
+        juce::NormalisableRange<float>(0.00001f, 0.001f, 0.0001f, 0.3f),
+        0.0001f
+    ));
     return { params.begin(), params.end() };
 }
 

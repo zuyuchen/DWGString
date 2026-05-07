@@ -21,7 +21,7 @@ public:
         buffer.assign (size, 0.0f);
         
         // set the read pos and write pos at the boundary
-        writePtr = 0;
+        writePtr = size - 1;
         readPtr = 0;
     }
 
@@ -44,7 +44,7 @@ public:
     void clear()
     {
         std::fill(buffer.begin(), buffer.end(), 0.0f);
-        writePtr = 0;
+        writePtr = size - 1;
         readPtr = 0;
     }
     

@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include "DWGString.h"
+#include "DispersionAPF.h"
 //==============================================================================
 /**
 */
@@ -69,7 +70,9 @@ private:
     float lastPluckPos;
     float lastMu;
     float lastK;
+    float lastB;
     float lastVelocity;
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 };

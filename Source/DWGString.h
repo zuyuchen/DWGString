@@ -11,6 +11,7 @@
 #pragma once
 #include "DelayLine.cpp"
 #include "FracDelay.cpp"
+#include "DispersionFilter.h"
 
 class DWGString
 {
@@ -18,6 +19,7 @@ public:
     void prepare(double sampleRate);
     void setFrequency(float frequency);
     void setDamping(float T60, float frequency, float mu_, float K_); // T60 controlled global damping coefficient
+    void setInharmonicity(float B_);
     void setPluckStrength(float strength);
     void pluck(float R, float pluckPos);    // pluck initialization
     
@@ -56,5 +58,9 @@ private:
     float p = 0.9; // pole = 1 - 2pi*mu / K
     float mu = 0.001; // Internal friction (mu) - controls high frequency decay rate
     float K = 0.0001; // Stiffness (K) - controls inharmonicity
+    
+    // Dispersion Filter
+    DispersionFilter dispersionR, dispersionL;
+    float B = 0.0001f;  // inharmonicity coefficient, exposed as parameter
      
 };

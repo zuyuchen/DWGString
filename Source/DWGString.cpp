@@ -42,6 +42,17 @@ void DWGString::setDamping(float T60, float frequency, float mu_, float K_)
     updateDelay(); // pole changes lead to change of phase delay
 }
 
+void DWGString::setInharmonicity(float B_)
+{
+    B = B_;
+    dispersionR.setFromInharmonicity(B, fs, freq);
+    dispersionL.setFromInharmonicity(B, fs, freq);
+    
+    // NOTE: updateDelay() should also account for dispersion phase delay
+    // for now this is approximate — tuning compensation comes next
+    updateDelay();
+}
+
 void DWGString::setPluckStrength(float strength)
 {
     pluckStrength = strength;
@@ -56,8 +67,17 @@ void DWGString::updateDelay()
     float totalDelay = (float)(fs / freq);
         
     // Phase delay of one-pole LP at DC = p / (1 - p)
-    float filterDelay = p / (1.0f - p);
+    float lpDelay = p / (1.0f - p);
     
+    // Phase delay of 4-stage dispersion APF at DC (once per loop)
+    // For H(z) = (a2 + a1*z^-1 + z^-2)/(1 + a1*z^-1 + a2*z^-2)
+    // Phase delay at DC = -(a1 + 2*a2) / (1 + a1 + a2)  per stage
+    float dispDelay = dispersionR.phaseDelayAtDC();  // total for all stages
+    
+    // Total non-delay-line phase in the loop
+    float filterDelay = lpDelay + dispDelay;
+    
+    // Each delay line phase
     float halfDelay = (totalDelay - filterDelay);
     intDelay = std::max(1, (int)halfDelay);
     fractionalDelay = std::clamp(halfDelay - intDelay, 0.0f, 0.999f);
@@ -81,6 +101,8 @@ void DWGString::pluck(float R, float pluckPos)
     z1R = 0.0f;
     z1L = 0.0f;
     zInput = 0.0f;
+    dispersionR.reset();
+    dispersionL.reset();
     
     int peakIdx = std::max(1, (int)std::round(pluckPos * intDelay)); // pick position index as the peak point of the triangle plucking wave
     
@@ -151,6 +173,13 @@ float DWGString::onePoleLP(float x, float& z1, float p)
     return y;
 }
 
+//delayLine.read()
+//  → fracDelay      (fractional pitch tuning)
+//  → dispersionAPF  (inharmonicity)
+//  → onePoleLP      (frequency-dependent loss)
+//  → reflect (-g)
+//  → delayLine.write()
+
 float DWGString::process()
 {
     // read the integer-delay line values at the boundary
@@ -160,6 +189,10 @@ float DWGString::process()
     // apply fractional delay ONCE in loop
     yPlus = fracDelayR.process(yPlus);
     yMinus = fracDelayL.process(yMinus);
+    
+//    // Dispersion - goes after fractional delay, before loss
+    yPlus = dispersionR.process(yPlus);
+    yMinus = dispersionL.process(yMinus);
     
     // apply two point average (one zero low pass) filter as the frequency-dependent loss
 //    float yPlusLP = twoPtAvgDecay(yPlus, this->z1R);

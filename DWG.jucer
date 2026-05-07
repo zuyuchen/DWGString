@@ -4,6 +4,9 @@
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn">
   <MAINGROUP id="G6KMNf" name="DWG">
     <GROUP id="{3C2502EB-8E5F-5C42-771E-0BA6B11561BE}" name="Source">
+      <FILE id="h1Oa2x" name="DispersionFilter.h" compile="0" resource="0"
+            file="Source/DispersionFilter.h"/>
+      <FILE id="jntcoY" name="DispersionAPF.h" compile="1" resource="0" file="Source/DispersionAPF.h"/>
       <FILE id="mo5iGe" name="FracDelay.cpp" compile="1" resource="0" file="Source/FracDelay.cpp"/>
       <FILE id="s5Xqb6" name="DWGString.cpp" compile="1" resource="0" file="Source/DWGString.cpp"/>
       <FILE id="zJsFUR" name="DWGString.h" compile="0" resource="0" file="Source/DWGString.h"/>
