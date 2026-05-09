@@ -139,7 +139,7 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     lastMu = 0.0002;
     lastK = 0.00001;
     lastP = 0.30;
-    lastB = 0.0001;
+    lastB = 0.001;
     lastVelocity = 0.8f;
     dwg.setFrequency(lastFreq);
     dwg.setDamping(lastT60, lastFreq, lastMu, lastK, lastP);
@@ -354,7 +354,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "B",
         "Inharmonicity",
         juce::NormalisableRange<float>(0.0000f, 0.001f, 0.00001f, 0.3f),
-        0.0000f
+        0.001f
     ));
     return { params.begin(), params.end() };
 }
