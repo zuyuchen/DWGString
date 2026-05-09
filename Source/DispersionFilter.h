@@ -16,7 +16,7 @@
 class DispersionFilter
 {
 public:
-    static constexpr int NUM_STAGES = 4;
+    static constexpr int NUM_STAGES = 2;
 
     void setFromInharmonicity(float B, float sampleRate, float freq)
     {

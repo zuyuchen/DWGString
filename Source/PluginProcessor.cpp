@@ -135,13 +135,14 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     lastT60 = 7.5f;
     lastPluck = false;
     lastR = 0.48;
-    lastPluckPos = 0.5;
+    lastPluckPos = 0.2;
     lastMu = 0.0002;
     lastK = 0.00001;
+    lastP = 0.30;
     lastB = 0.0001;
     lastVelocity = 0.8f;
     dwg.setFrequency(lastFreq);
-    dwg.setDamping(lastT60, lastFreq, lastMu, lastK);
+    dwg.setDamping(lastT60, lastFreq, lastMu, lastK, lastP);
     dwg.setInharmonicity(lastB);
     
 
@@ -158,8 +159,9 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     bool pluck = apvts.getRawParameterValue("pluck")->load();
     float R = apvts.getRawParameterValue("R")->load();
     float pluckPos = apvts.getRawParameterValue("pluckPos")->load();
-    float mu = apvts.getRawParameterValue("mu")->load();
-    float K = apvts.getRawParameterValue("K")->load();
+    float mu = lastMu;
+    float K = lastK;
+    float p = apvts.getRawParameterValue("p")->load();
     float B = apvts.getRawParameterValue("B")->load();
     
     
@@ -167,17 +169,18 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     if (freq != lastFreq)
     {
         dwg.setFrequency(freq);
-        dwg.setDamping(T60, freq, mu, K);
+        dwg.setDamping(T60, freq, mu, K, p);
         dwg.setInharmonicity(B);
         lastFreq = freq;
     }
     
-    if (T60 != lastT60 || mu != lastMu || K != lastK)
+    if (T60 != lastT60 || mu != lastMu || K != lastK || p != lastP)
     {
-        dwg.setDamping(T60, freq, mu, K);
+        dwg.setDamping(T60, freq, mu, K, p);
         lastT60 = T60;
         lastMu = mu;
         lastK = K;
+        lastP = p;
     }
     
     if (B != lastB)
@@ -223,7 +226,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             float pluckStrength = 0.5f + 0.5f * velocity;
             dwg.setPluckStrength(pluckStrength);
             dwg.setFrequency(midiFreq);
-            dwg.setDamping(lastT60, midiFreq, mu, K);
+            dwg.setDamping(lastT60, midiFreq, mu, K, p);
             dwg.setInharmonicity(lastB);
             dwg.pluck(R, pluckPos);
         }
@@ -311,7 +314,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         "R",
         "Soften Attack",
         juce::NormalisableRange<float>(0.00f, 1.00f, 0.01f),
-        .48f
+        .91f
     ));
     
     // Pick position 0 ~ 1
@@ -322,28 +325,36 @@ juce::AudioProcessorValueTreeState::ParameterLayout DWGAudioProcessor::createPar
         .20f
     ));
     
-    // Internal friction (mu) - controls high frequency decay rate
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "mu",
-        "Internal Friction",
-        juce::NormalisableRange<float>(0.0001f, 0.001f, 0.0001f, 0.3f),  // 0.3 skew toward small values
-        0.0002f
-    ));
-
-    // Stiffness (K) - controls inharmonicity
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        "K",
-        "Stiffness",
-        juce::NormalisableRange<float>(0.000001f, 0.0001f, 0.00001f, 0.3f),  // 0.3 skew toward small values
-        0.00001f
-    ));
+//    // Internal friction (mu) - controls high frequency decay rate
+//    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+//        "mu",
+//        "Internal Friction",
+//        juce::NormalisableRange<float>(0.0001f, 0.001f, 0.0001f, 0.3f),  // 0.3 skew toward small values
+//        0.0002f
+//    ));
+//
+//    // Stiffness (K) - controls inharmonicity
+//    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+//        "K",
+//        "Stiffness",
+//        juce::NormalisableRange<float>(0.000001f, 0.0001f, 0.00001f, 0.3f),  // 0.3 skew toward small values
+//        0.00001f
+//    ));
+    
+    // Global Low Pass Filtering (p) - controls the pole of the one-pole LPF
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            "p",
+            "pole",
+            juce::NormalisableRange<float>(0.01f, 0.99f, 0.01f),  //
+            0.65f
+        ));
     
     // Inharmonicity B
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "B",
         "Inharmonicity",
-        juce::NormalisableRange<float>(0.00001f, 0.001f, 0.0001f, 0.3f),
-        0.0001f
+        juce::NormalisableRange<float>(0.0000f, 0.001f, 0.00001f, 0.3f),
+        0.0000f
     ));
     return { params.begin(), params.end() };
 }

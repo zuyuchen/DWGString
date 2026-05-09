@@ -18,7 +18,7 @@ class DWGString
 public:
     void prepare(double sampleRate);
     void setFrequency(float frequency);
-    void setDamping(float T60, float frequency, float mu_, float K_); // T60 controlled global damping coefficient
+    void setDamping(float T60, float frequency, float mu_, float K_, float p_); // T60 controlled global damping coefficient
     void setInharmonicity(float B_);
     void setPluckStrength(float strength);
     void pluck(float R, float pluckPos);    // pluck initialization
@@ -45,7 +45,7 @@ private:
    
     double fs = 44100.0;  // sample rate
     float freq = 440.0f; // fuundamental frequency (pitch)
-    float pluckStrength = 1; // pluck amplitude
+    float pluckStrength = 0.8; // pluck amplitude
     float g = 0.999f; // damping coefficient
     float T60 = 2.0; // T60 decay time in sec
     
@@ -55,7 +55,7 @@ private:
     float z1R = 0.0f;
     float z1L = 0.0f; // inital state
     
-    float p = 0.9; // pole = 1 - 2pi*mu / K
+    float p = 0.3; // pole = 1 - 2pi*mu / K
     float mu = 0.001; // Internal friction (mu) - controls high frequency decay rate
     float K = 0.0001; // Stiffness (K) - controls inharmonicity
     

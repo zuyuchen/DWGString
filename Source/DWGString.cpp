@@ -24,7 +24,7 @@ void DWGString::setFrequency(float frequency)
     updateDelay();
 }
 
-void DWGString::setDamping(float T60, float frequency, float mu_, float K_)
+void DWGString::setDamping(float T60, float frequency, float mu_, float K_, float p_)
 {
 
     float gLoop = pow(10.0f, -3.0f / (T60 * frequency)); // g now is proportional to 10^(-1/f), lower in pitch(longer loops) decay faster per loop but overall it decays 10^-3 of orgional after T60s for all frequencies.
@@ -33,10 +33,12 @@ void DWGString::setDamping(float T60, float frequency, float mu_, float K_)
     // set mu and K
     mu = mu_;
     K = K_;
+    p = p_;
     // Frequency-dependent loss pole: p = exp(-2π * mu / (K * frequency))
     // This gives realistic frequency-dependent damping, ensuring p stays between 0 and 1 and gives natural high-frequency rolloff!
-    float exponent = -2.0f * juce::MathConstants<float>::pi * mu / (K * frequency + 0.00001f);
-    p = std::clamp(exp(exponent), 0.01f, 0.99f);
+    
+//    float exponent = -2.0f * juce::MathConstants<float>::pi * mu / (K * frequency + 0.00001f);
+//    p = std::clamp(exp(exponent), 0.01f, 0.99f);
         
     // Update fractional delay
     updateDelay(); // pole changes lead to change of phase delay
@@ -50,7 +52,7 @@ void DWGString::setInharmonicity(float B_)
     
     // NOTE: updateDelay() should also account for dispersion phase delay
     // for now this is approximate — tuning compensation comes next
-    updateDelay();
+//    updateDelay();
 }
 
 void DWGString::setPluckStrength(float strength)
@@ -72,15 +74,19 @@ void DWGString::updateDelay()
     // Phase delay of 4-stage dispersion APF at DC (once per loop)
     // For H(z) = (a2 + a1*z^-1 + z^-2)/(1 + a1*z^-1 + a2*z^-2)
     // Phase delay at DC = -(a1 + 2*a2) / (1 + a1 + a2)  per stage
-    float dispDelay = dispersionR.phaseDelayAtDC();  // total for all stages
+//    float dispDelay = dispersionR.phaseDelayAtDC();  // total for all stages
     
     // Total non-delay-line phase in the loop
-    float filterDelay = lpDelay + dispDelay;
+//    float filterDelay = lpDelay + dispDelay;
+    float filterDelay = lpDelay; // ignore dispersion filter delay for now
     
     // Each delay line phase
-    float halfDelay = 0.5f * (totalDelay - filterDelay);
+    float halfDelay =  (totalDelay - filterDelay);
     intDelay = std::max(1, (int)halfDelay);
-    fractionalDelay = std::clamp(halfDelay - intDelay, 0.0f, 0.999f);
+    float raw = halfDelay - intDelay;
+//    if (raw < 0.05f) { intDelay -= 1; raw += 1.0f; }
+//    if (raw > 0.95f) { intDelay += 1; raw -= 1.0f; }
+    fractionalDelay = std::clamp(raw, 0.05f, 0.95f);
     
     fracDelayR.setDelay(fractionalDelay);
     fracDelayL.setDelay(fractionalDelay);
@@ -124,8 +130,8 @@ void DWGString::pluck(float R, float pluckPos)
 //       else 
 //           displacement = pluckStrength * (float)(intDelay - i) / (float)(intDelay - peakIdx); // falling slope
         // Add small noise to the pluck for realism
-        float noise = noiseInput(0.1);
-        displacement += noise;
+//        float noise = noiseInput(0.1);
+//        displacement += noise;
         
         // First apply comb (pluck position notches)
         float delayed = combBuffer[combPtr];
@@ -134,7 +140,7 @@ void DWGString::pluck(float R, float pluckPos)
         combPtr = (combPtr + 1) % peakIdx;
 
         // Then soften with LPF
-        float softened = onePoleLP(combed, this->zInput, R);
+        float softened = onePoleLP(combed, zInput, R);
         
         // Write same filtered noise to both delay lines (mono excitation)
         delayR.write(softened);
@@ -198,7 +204,7 @@ float DWGString::process()
 //    float yPlusLP = twoPtAvgDecay(yPlus, this->z1R);
 //    float yMinusLP = twoPtAvgDecay(yMinus, this->z1L);
     
-    // apply one-one pole loss pass filter as the frequency-dependent loss
+//    // apply one-pole loss pass filter as the frequency-dependent loss
     float yPlusLP = onePoleLP(yPlus, this->z1R, p);
     float yMinusLP = onePoleLP(yMinus, this->z1L, p);
     

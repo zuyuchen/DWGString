@@ -35,23 +35,29 @@ public:
     // Call this whenever B or sample rate changes
     void setFromInharmonicity(float B, float sampleRate, float freq)
     {
-        // Clamp B to reasonable range
-       float B_clamped = std::max(0.000001f, std::min(0.01f, B));
-        
-        // a2 controls how much phase is accumulated at high frequencies
-        // Larger |a2| = more dispersion. Keep negative to push transition above fundamental.
-        a2 = -std::exp(-2.0f * juce::MathConstants<float>::pi * std::sqrt(B_clamped + 1e-10f));
-        a2 = std::clamp(a2, -0.99f, -0.01f);  // Keep away from -1
-        
-        // a1 tunes the centre of the phase transition
-        // Setting cos term to freq-dependent value concentrates dispersion above fundamental
-        // Set transition centre well above fundamental — target ~1/4 Nyquist
-        // This leaves the fundamental largely unaffected and bends upper partials
-        float wc = juce::MathConstants<float>::pi * 0.5f;  // ← fixed, not freq-dependent
-        
+        // Hard bypass when B is negligible
+        if (B < 1e-6f) { a1 = 0.0f; a2 = 0.0f; return; }
+
+        // --- a2: monotonically maps B → dispersion amount ---
+        // For guitar B ∈ [0, 0.001], target a2 ∈ [0, -0.5]
+        // sqrt scaling gives a reasonable perceptual curve
+        float B_norm = std::sqrt(B / 0.001f);              // 0..1 for B in [0, 0.001]
+        a2 = std::clamp(-B_norm * 0.5f, -0.85f, 0.0f);    // more B → more negative a2
+
+        // --- a1: set transition centre above the fundamental ---
+        // Target: 4× the fundamental, clamped to 10%–40% of Nyquist
+        float wc_hz = std::clamp(freq * 4.0f,
+                                 sampleRate * 0.05f,
+                                 sampleRate * 0.40f);
+        float wc = 2.0f * juce::MathConstants<float>::pi * wc_hz / sampleRate;
+
         float denom = 1.0f + a2;
-        a1 = (std::abs(denom) < 1e-6f) ? 0.0f
-                                            : std::clamp(-2.0f * a2 * std::cos(wc) / denom, -1.9f, 1.9f);
+        float a1_raw = (std::abs(denom) < 1e-6f) ? 0.0f
+                         : -2.0f * a2 * std::cos(wc) / denom;
+
+        // ← clamp to actual stability triangle, not an arbitrary constant
+        float max_a1 = 0.95f * (1.0f + a2);   // 5% margin inside the boundary
+        a1 = std::clamp(a1_raw, -max_a1, max_a1);
     }
 
     float process(float x)
