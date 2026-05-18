@@ -70,22 +70,20 @@ void DWGString::updateDelay()
         
     // Phase delay of one-pole LP at DC = p / (1 - p)
     float lpDelay = p / (1.0f - p);
-    
-    // Phase delay of 4-stage dispersion APF at DC (once per loop)
-    // For H(z) = (a2 + a1*z^-1 + z^-2)/(1 + a1*z^-1 + a2*z^-2)
-    // Phase delay at DC = -(a1 + 2*a2) / (1 + a1 + a2)  per stage
-//    float dispDelay = dispersionR.phaseDelayAtDC();  // total for all stages
+
+    float omega0    = juce::MathConstants<float>::twoPi * freq / fs;
+    float dispDelay = dispersionR.phaseDelayAt(omega0);   // uses our phaseDelayAt(ω) method
+
+    float filterDelay = lpDelay + dispDelay;
     
     // Total non-delay-line phase in the loop
 //    float filterDelay = lpDelay + dispDelay;
-    float filterDelay = lpDelay; // ignore dispersion filter delay for now
+   
     
     // Each delay line phase
     float halfDelay =  (totalDelay - filterDelay);
     intDelay = std::max(1, (int)halfDelay);
     float raw = halfDelay - intDelay;
-//    if (raw < 0.05f) { intDelay -= 1; raw += 1.0f; }
-//    if (raw > 0.95f) { intDelay += 1; raw -= 1.0f; }
     fractionalDelay = std::clamp(raw, 0.05f, 0.95f);
     
     fracDelayR.setDelay(fractionalDelay);
