@@ -68,8 +68,6 @@ private:
     bool lastPluck;
     float lastR;
     float lastPluckPos;
-    float lastMu;
-    float lastK;
     float lastP;
     float lastB;
     float lastVelocity;

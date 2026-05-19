@@ -136,13 +136,11 @@ void DWGAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     lastPluck = false;
     lastR = 0.48;
     lastPluckPos = 0.2;
-    lastMu = 0.0002;
-    lastK = 0.00001;
     lastP = 0.30;
     lastB = 0.001;
     lastVelocity = 0.8f;
     dwg.setFrequency(lastFreq);
-    dwg.setDamping(lastT60, lastFreq, lastMu, lastK, lastP);
+    dwg.setDamping(lastT60, lastFreq, lastP);
     dwg.setInharmonicity(lastB);
     
 
@@ -159,8 +157,6 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     bool pluck = apvts.getRawParameterValue("pluck")->load();
     float R = apvts.getRawParameterValue("R")->load();
     float pluckPos = apvts.getRawParameterValue("pluckPos")->load();
-    float mu = lastMu;
-    float K = lastK;
     float p = apvts.getRawParameterValue("p")->load();
     float B = apvts.getRawParameterValue("B")->load();
     
@@ -169,17 +165,15 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     if (freq != lastFreq)
     {
         dwg.setFrequency(freq);
-        dwg.setDamping(T60, freq, mu, K, p);
+        dwg.setDamping(T60, freq,p);
         dwg.setInharmonicity(B);
         lastFreq = freq;
     }
     
-    if (T60 != lastT60 || mu != lastMu || K != lastK || p != lastP)
+    if (T60 != lastT60 || p != lastP)
     {
-        dwg.setDamping(T60, freq, mu, K, p);
+        dwg.setDamping(T60, freq, p);
         lastT60 = T60;
-        lastMu = mu;
-        lastK = K;
         lastP = p;
     }
     
@@ -226,7 +220,7 @@ void DWGAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             float pluckStrength = 0.5f + 0.5f * velocity;
             dwg.setPluckStrength(pluckStrength);
             dwg.setFrequency(midiFreq);
-            dwg.setDamping(lastT60, midiFreq, mu, K, p);
+            dwg.setDamping(lastT60, midiFreq, p);
             dwg.setInharmonicity(lastB);
             dwg.pluck(R, pluckPos);
         }
